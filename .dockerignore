@@ -1,0 +1,5 @@
+.git
+.gitignore
+database/
+.claude/
+*.md
