@@ -9,7 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-include "config.php"; 
+include "config.php";
+require "notifications_db.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -67,6 +68,38 @@ try {
     $stmt->execute([$sender['id'], $receiver['id'], $amount, $message]);
 
     $conn->commit();
+
+    /* Krijon njoftime per te dy palet (nuk e prish transferin nese deshton) */
+    try {
+        $stmt = $conn->prepare("SELECT name, surname FROM users WHERE id = ?");
+        $stmt->execute([$sender_id]);
+        $senderUser = $stmt->fetch(PDO::FETCH_ASSOC);
+        $senderName = $senderUser
+            ? trim($senderUser['name'] . ' ' . $senderUser['surname'])
+            : 'another user';
+
+        $amountStr = number_format($amount, 2);
+
+        // Pranuesi: ka pranuar pare
+        addNotification(
+            $conn,
+            $receiver['user_id'],
+            "received",
+            "Money received",
+            "You received " . $amountStr . " EUR from " . $senderName . "."
+        );
+
+        // Derguesi: konfirmim qe ka derguar pare
+        addNotification(
+            $conn,
+            $sender_id,
+            "sent",
+            "Transfer sent",
+            "You sent " . $amountStr . " EUR to " . trim($receiver_name . ' ' . $receiver_surname) . "."
+        );
+    } catch (Exception $e) {
+        // ignore notification errors
+    }
 
     echo json_encode([
         "status" => "success",

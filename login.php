@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require "config.php";
+require "notifications_db.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -44,6 +45,19 @@ if(!password_verify($pin, $user["pin"])){
     $stmt = $conn->prepare("SELECT * FROM accounts WHERE user_id=?");
     $stmt->execute([$user["id"]]);
     $account = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    /* Krijon nje njoftim per login (nuk e prish login-in nese deshton) */
+    try {
+        addNotification(
+            $conn,
+            $user["id"],
+            "login",
+            "New sign-in",
+            "You signed in to your DS Banking account."
+        );
+    } catch (Exception $e) {
+        // ignore notification errors
+    }
 
     echo json_encode([
         "status"=>"success",
