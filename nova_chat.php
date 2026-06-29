@@ -35,7 +35,6 @@ $data = json_decode(file_get_contents("php://input"), true);
 $user_id = $data["user_id"] ?? null;
 $message = trim($data["message"] ?? "");
 $history = $data["history"] ?? [];
-$debug = !empty($data["debug"]); // when true, surface the underlying AI error
 
 if ($message === "") {
     echo json_encode(["status" => "error", "message" => "Empty message"]);
@@ -81,17 +80,12 @@ try {
         echo json_encode(["status" => "success", "reply" => $result["reply"], "source" => "ai"]);
     } else {
         // Log server-side; show the user a friendly, non-technical message.
-        error_log("NOVA Gemini error: " . $result["error"]);
-        $out = [
+        error_log("NOVA LLM error: " . $result["error"]);
+        echo json_encode([
             "status" => "success",
             "reply" => "Sorry, I'm having trouble answering right now. Please try again in a moment.",
             "source" => "fallback",
-        ];
-        if ($debug) {
-            $out["detail"] = $result["error"];
-            $out["model"] = novaModel();
-        }
-        echo json_encode($out);
+        ]);
     }
 } catch (Exception $e) {
     error_log("NOVA chat error: " . $e->getMessage());
