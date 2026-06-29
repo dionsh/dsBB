@@ -21,11 +21,39 @@
  * caller when account answers are needed.
  */
 
-/* The model to use. Overridable via env so you can switch models without a code
- * change (use whatever your free key supports in Google AI Studio). */
+/*
+ * Which LLM provider to use. NOVA is provider-flexible so you can use whichever
+ * free API key works for you:
+ *   - Set GROQ_API_KEY    -> uses Groq (free tier, fast; get a key at console.groq.com/keys)
+ *   - Set GEMINI_API_KEY  -> uses Google Gemini (only if the free tier is available in your region)
+ * You can force one explicitly with NOVA_PROVIDER = "groq" | "gemini".
+ */
+function novaProvider() {
+    $p = getenv("NOVA_PROVIDER");
+    if ($p) return strtolower(trim($p));
+    if (getenv("GROQ_API_KEY")) return "groq";
+    if (getenv("GEMINI_API_KEY")) return "gemini";
+    return "";
+}
+
+/* The model to use. Overridable via NOVA_MODEL; otherwise a sensible free
+ * default per provider. */
 function novaModel() {
     $m = getenv("NOVA_MODEL");
-    return $m ?: "gemini-2.0-flash";
+    if ($m) return $m;
+    return novaProvider() === "groq" ? "llama-3.3-70b-versatile" : "gemini-2.0-flash";
+}
+
+/* Dispatch to the configured provider. Returns ["ok"=>bool,"reply"=>..,"error"=>..]. */
+function novaCallLLM($systemPrompt, $history, $userMessage) {
+    $provider = novaProvider();
+    if ($provider === "groq") {
+        return novaCallGroq(getenv("GROQ_API_KEY"), novaModel(), $systemPrompt, $history, $userMessage);
+    }
+    if ($provider === "gemini") {
+        return novaCallGemini(getenv("GEMINI_API_KEY"), novaModel(), $systemPrompt, $history, $userMessage);
+    }
+    return ["ok" => false, "reply" => "", "error" => "No LLM provider configured"];
 }
 
 /* A compact, factual description of DS Banking. Injected into the system prompt
@@ -217,6 +245,68 @@ function novaCallGemini($apiKey, $model, $systemPrompt, $history, $userMessage) 
             if (isset($p["text"])) $text .= $p["text"];
         }
     }
+    if (trim($text) === "") {
+        return [
+            "ok" => true,
+            "reply" => "I'm NOVA, your DS Banking assistant — I can only help with DS Banking and general banking questions. 😊",
+            "error" => "",
+        ];
+    }
+
+    return ["ok" => true, "reply" => trim($text), "error" => ""];
+}
+
+/*
+ * Call Groq (OpenAI-compatible Chat Completions API). Free tier, fast.
+ * Returns ["ok" => bool, "reply" => string, "error" => string].
+ */
+function novaCallGroq($apiKey, $model, $systemPrompt, $history, $userMessage) {
+    $messages = [["role" => "system", "content" => $systemPrompt]];
+    if (is_array($history)) {
+        foreach (array_slice($history, -8) as $msg) {
+            $text = trim($msg["text"] ?? "");
+            if ($text === "") continue;
+            $role = (($msg["sender"] ?? "") === "user") ? "user" : "assistant";
+            $messages[] = ["role" => $role, "content" => $text];
+        }
+    }
+    $messages[] = ["role" => "user", "content" => $userMessage];
+
+    $payload = [
+        "model" => $model,
+        "messages" => $messages,
+        "temperature" => 0.3,
+        "max_tokens" => 500,
+    ];
+
+    $ch = curl_init("https://api.groq.com/openai/v1/chat/completions");
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            "Content-Type: application/json",
+            "Authorization: Bearer " . $apiKey,
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $raw = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false) {
+        return ["ok" => false, "reply" => "", "error" => "curl: " . $curlErr];
+    }
+
+    $json = json_decode($raw, true);
+
+    if ($httpCode !== 200) {
+        $apiMsg = $json["error"]["message"] ?? ("HTTP " . $httpCode);
+        return ["ok" => false, "reply" => "", "error" => $apiMsg];
+    }
+
+    $text = $json["choices"][0]["message"]["content"] ?? "";
     if (trim($text) === "") {
         return [
             "ok" => true,

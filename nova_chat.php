@@ -65,9 +65,8 @@ try {
         exit;
     }
 
-    // 2) Everything else -> the LLM (Gemini), kept on topic by the system prompt.
-    $apiKey = getenv("GEMINI_API_KEY");
-    if (!$apiKey) {
+    // 2) Everything else -> the LLM, kept on topic by the system prompt.
+    if (!novaProvider()) {
         echo json_encode([
             "status" => "success",
             "reply" => "NOVA's smart answers aren't configured yet. In the meantime, use the quick buttons below for your balance, card and account details.",
@@ -76,7 +75,7 @@ try {
         exit;
     }
 
-    $result = novaCallGemini($apiKey, novaModel(), novaSystemPrompt(), $history, $message);
+    $result = novaCallLLM(novaSystemPrompt(), $history, $message);
 
     if ($result["ok"]) {
         echo json_encode(["status" => "success", "reply" => $result["reply"], "source" => "ai"]);
