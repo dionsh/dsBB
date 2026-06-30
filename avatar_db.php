@@ -61,6 +61,7 @@ function avatarCatalogSeed() {
 /* The default look a new character starts with (all free items). */
 function avatarDefaultLook() {
     return [
+        "gender"      => "male",
         "skin"        => "#E0AC69",
         "hair_style"  => "short",   "hair_color"  => "#2A2A2A",
         "shirt_style" => "tshirt",  "shirt_color" => "#4F46E5",
@@ -99,6 +100,7 @@ function ensureAvatarSchema($conn) {
     $conn->exec("
         CREATE TABLE IF NOT EXISTS user_avatar (
             user_id INT(11) NOT NULL PRIMARY KEY,
+            gender VARCHAR(10) NOT NULL DEFAULT 'male',
             skin VARCHAR(9) NOT NULL,
             hair_style VARCHAR(30) NOT NULL,
             hair_color VARCHAR(9) NOT NULL,
@@ -111,6 +113,13 @@ function ensureAvatarSchema($conn) {
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ");
+
+    // Add the gender column to user_avatar tables created before it existed
+    // (CREATE TABLE IF NOT EXISTS won't alter an existing table). Idempotent.
+    $hasGender = $conn->query("SHOW COLUMNS FROM user_avatar LIKE 'gender'")->fetch();
+    if (!$hasGender) {
+        $conn->exec("ALTER TABLE user_avatar ADD COLUMN gender VARCHAR(10) NOT NULL DEFAULT 'male' AFTER user_id");
+    }
 
     seedAvatarCatalog($conn);
 }
@@ -228,12 +237,13 @@ function getOrCreateUserAvatar($conn, $user_id) {
     $look = avatarDefaultLook();
     $stmt = $conn->prepare("
         INSERT INTO user_avatar
-            (user_id, skin, hair_style, hair_color, shirt_style, shirt_color,
+            (user_id, gender, skin, hair_style, hair_color, shirt_style, shirt_color,
              pants_style, pants_color, shoe_style, shoe_color)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $user_id,
+        $look["gender"],
         $look["skin"],
         $look["hair_style"],  $look["hair_color"],
         $look["shirt_style"], $look["shirt_color"],

@@ -53,7 +53,8 @@ try {
         }
     }
 
-    // Colours and skin are free customisation — just sanitised.
+    // Gender + colours + skin are free customisation.
+    $gender     = (isset($config["gender"]) && $config["gender"] === "female") ? "female" : "male";
     $skin       = cleanColor($config["skin"]        ?? null, $defaults["skin"]);
     $hairColor  = cleanColor($config["hair_color"]  ?? null, $defaults["hair_color"]);
     $shirtColor = cleanColor($config["shirt_color"] ?? null, $defaults["shirt_color"]);
@@ -65,6 +66,7 @@ try {
 
     $stmt = $conn->prepare("
         UPDATE user_avatar SET
+            gender = ?,
             skin = ?,
             hair_style = ?,  hair_color = ?,
             shirt_style = ?, shirt_color = ?,
@@ -74,6 +76,7 @@ try {
         WHERE user_id = ?
     ");
     $stmt->execute([
+        $gender,
         $skin,
         $slots["hair"],  $hairColor,
         $slots["shirt"], $shirtColor,
@@ -86,6 +89,7 @@ try {
         "status"   => "success",
         "message"  => "Look saved",
         "equipped" => [
+            "gender"      => $gender,
             "skin"        => $skin,
             "hair_style"  => $slots["hair"],  "hair_color"  => $hairColor,
             "shirt_style" => $slots["shirt"], "shirt_color" => $shirtColor,

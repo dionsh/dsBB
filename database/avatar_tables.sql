@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS user_items (
 -- The look a user currently has equipped (one row per user).
 CREATE TABLE IF NOT EXISTS user_avatar (
     user_id INT(11) NOT NULL PRIMARY KEY,
+    gender VARCHAR(10) NOT NULL DEFAULT 'male',
     skin VARCHAR(9) NOT NULL,
     hair_style VARCHAR(30) NOT NULL,
     hair_color VARCHAR(9) NOT NULL,
