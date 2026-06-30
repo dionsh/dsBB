@@ -39,8 +39,11 @@ try {
 
     $defaults = avatarDefaultLook();
 
-    // Style choices are validated against what the user actually owns, so the
-    // client can never equip a locked item it didn't buy.
+    // Gender first — style validation depends on it.
+    $gender = (isset($config["gender"]) && $config["gender"] === "female") ? "female" : "male";
+
+    // Style choices are validated against what the user owns AND the character's
+    // gender, so the client can never equip a locked or off-gender item.
     $slots = [
         "hair"  => $config["hair_style"]  ?? $defaults["hair_style"],
         "shirt" => $config["shirt_style"] ?? $defaults["shirt_style"],
@@ -48,13 +51,12 @@ try {
         "shoes" => $config["shoe_style"]  ?? $defaults["shoe_style"],
     ];
     foreach ($slots as $slot => $style) {
-        if (!userOwnsStyle($conn, $user_id, $slot, $style)) {
-            throw new Exception("You don't own the selected $slot item");
+        if (!userCanEquipStyle($conn, $user_id, $slot, $style, $gender)) {
+            throw new Exception("You can't equip the selected $slot item");
         }
     }
 
-    // Gender + colours + skin are free customisation.
-    $gender     = (isset($config["gender"]) && $config["gender"] === "female") ? "female" : "male";
+    // Colours + skin are free customisation.
     $skin       = cleanColor($config["skin"]        ?? null, $defaults["skin"]);
     $hairColor  = cleanColor($config["hair_color"]  ?? null, $defaults["hair_color"]);
     $shirtColor = cleanColor($config["shirt_color"] ?? null, $defaults["shirt_color"]);

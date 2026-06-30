@@ -25,36 +25,41 @@
  * already shipped with, so a brand-new character looks complete; the premium
  * items are the ones worth unlocking. Style ids MUST match the ids rendered by
  * the frontend Avatar.js component.
- * Fields: [slot, style, display name, price_points, is_free, preview_color]
+ * Fields: [slot, style, display name, price_points, is_free, preview_color, gender]
+ * gender: 'any' (shown to everyone) | 'female' (women-only items).
  */
 function avatarCatalogSeed() {
     return [
         // hair --------------------------------------------------------------
-        ["hair",  "short",    "Short Hair",   0,   1, "#2A2A2A"],
-        ["hair",  "curly",    "Curly Hair",   0,   1, "#2A2A2A"],
-        ["hair",  "long",     "Long Hair",    0,   1, "#5A3A22"],
-        ["hair",  "buzz",     "Buzz Cut",     100, 0, "#2A2A2A"],
-        ["hair",  "spiky",    "Spiky Hair",   250, 0, "#111827"],
-        ["hair",  "bun",      "Top Bun",      300, 0, "#2A2A2A"],
+        ["hair",  "short",    "Short Hair",    0,   1, "#2A2A2A", "any"],
+        ["hair",  "curly",    "Curly Hair",    0,   1, "#2A2A2A", "any"],
+        ["hair",  "long",     "Long Hair",     0,   1, "#5A3A22", "any"],
+        ["hair",  "buzz",     "Buzz Cut",      100, 0, "#2A2A2A", "any"],
+        ["hair",  "spiky",    "Spiky Hair",    250, 0, "#111827", "any"],
+        ["hair",  "bun",      "Top Bun",       300, 0, "#2A2A2A", "any"],
+        ["hair",  "ponytail", "Ponytail",      150, 0, "#5A3A22", "female"],
 
         // shirt -------------------------------------------------------------
-        ["shirt", "tshirt",   "T-shirt",      0,   1, "#4F46E5"],
-        ["shirt", "hoodie",   "Hoodie",       0,   1, "#4F46E5"],
-        ["shirt", "polo",     "Polo",         0,   1, "#10B981"],
-        ["shirt", "tank",     "Tank Top",     200, 0, "#0EA5E9"],
-        ["shirt", "suit",     "Business Suit",600, 0, "#1F2937"],
+        ["shirt", "tshirt",   "T-shirt",       0,   1, "#4F46E5", "any"],
+        ["shirt", "hoodie",   "Hoodie",        0,   1, "#4F46E5", "any"],
+        ["shirt", "polo",     "Polo",          0,   1, "#10B981", "any"],
+        ["shirt", "tank",     "Tank Top",      200, 0, "#0EA5E9", "any"],
+        ["shirt", "suit",     "Business Suit", 600, 0, "#1F2937", "any"],
+        ["shirt", "dress",    "Dress",         400, 0, "#D14B8F", "female"],
 
         // pants -------------------------------------------------------------
-        ["pants", "jeans",    "Jeans",        0,   1, "#2C3E50"],
-        ["pants", "shorts",   "Shorts",       0,   1, "#1F3A5F"],
-        ["pants", "cargo",    "Cargo Pants",  250, 0, "#6B4F2A"],
-        ["pants", "joggers",  "Joggers",      300, 0, "#374151"],
+        ["pants", "jeans",    "Jeans",         0,   1, "#2C3E50", "any"],
+        ["pants", "shorts",   "Shorts",        0,   1, "#1F3A5F", "any"],
+        ["pants", "cargo",    "Cargo Pants",   250, 0, "#6B4F2A", "any"],
+        ["pants", "joggers",  "Joggers",       300, 0, "#374151", "any"],
+        ["pants", "skirt",    "Skirt",         150, 0, "#D14B8F", "female"],
 
         // shoes -------------------------------------------------------------
-        ["shoes", "sneakers", "Sneakers",     0,   1, "#FFFFFF"],
-        ["shoes", "boots",    "Boots",        0,   1, "#111827"],
-        ["shoes", "sandals",  "Sandals",      100, 0, "#6B4F2A"],
-        ["shoes", "hightops", "High-tops",    350, 0, "#E53935"],
+        ["shoes", "sneakers", "Sneakers",      0,   1, "#FFFFFF", "any"],
+        ["shoes", "boots",    "Boots",         0,   1, "#111827", "any"],
+        ["shoes", "sandals",  "Sandals",       100, 0, "#6B4F2A", "any"],
+        ["shoes", "hightops", "High-tops",     350, 0, "#E53935", "any"],
+        ["shoes", "heels",    "Heels",         200, 0, "#E53935", "female"],
     ];
 }
 
@@ -81,6 +86,7 @@ function ensureAvatarSchema($conn) {
             price_points INT(11) NOT NULL DEFAULT 0,
             is_free TINYINT(1) NOT NULL DEFAULT 0,
             preview_color VARCHAR(9) DEFAULT NULL,
+            gender VARCHAR(10) NOT NULL DEFAULT 'any',
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_avatar_item (slot, style)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
@@ -114,11 +120,15 @@ function ensureAvatarSchema($conn) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ");
 
-    // Add the gender column to user_avatar tables created before it existed
-    // (CREATE TABLE IF NOT EXISTS won't alter an existing table). Idempotent.
-    $hasGender = $conn->query("SHOW COLUMNS FROM user_avatar LIKE 'gender'")->fetch();
-    if (!$hasGender) {
+    // Add gender columns to tables created before they existed (CREATE TABLE IF
+    // NOT EXISTS won't alter an existing table). Both checks are idempotent.
+    $hasUserGender = $conn->query("SHOW COLUMNS FROM user_avatar LIKE 'gender'")->fetch();
+    if (!$hasUserGender) {
         $conn->exec("ALTER TABLE user_avatar ADD COLUMN gender VARCHAR(10) NOT NULL DEFAULT 'male' AFTER user_id");
+    }
+    $hasItemGender = $conn->query("SHOW COLUMNS FROM avatar_items LIKE 'gender'")->fetch();
+    if (!$hasItemGender) {
+        $conn->exec("ALTER TABLE avatar_items ADD COLUMN gender VARCHAR(10) NOT NULL DEFAULT 'any'");
     }
 
     seedAvatarCatalog($conn);
@@ -127,13 +137,14 @@ function ensureAvatarSchema($conn) {
 /* Insert any missing catalog rows. Idempotent thanks to the unique key. */
 function seedAvatarCatalog($conn) {
     $stmt = $conn->prepare("
-        INSERT INTO avatar_items (slot, style, name, price_points, is_free, preview_color)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO avatar_items (slot, style, name, price_points, is_free, preview_color, gender)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             name = VALUES(name),
             price_points = VALUES(price_points),
             is_free = VALUES(is_free),
-            preview_color = VALUES(preview_color)
+            preview_color = VALUES(preview_color),
+            gender = VALUES(gender)
     ");
     foreach (avatarCatalogSeed() as $row) {
         $stmt->execute($row);
@@ -154,6 +165,7 @@ function getAvatarCatalog($conn, $user_id) {
             i.price_points,
             i.is_free,
             i.preview_color,
+            i.gender,
             (i.is_free = 1 OR ui.id IS NOT NULL) AS owned
         FROM avatar_items i
         LEFT JOIN user_items ui
@@ -174,6 +186,7 @@ function getAvatarCatalog($conn, $user_id) {
             "price_points"  => (int) $r["price_points"],
             "is_free"       => (bool) $r["is_free"],
             "preview_color" => $r["preview_color"],
+            "gender"        => $r["gender"],
             "owned"         => (bool) $r["owned"],
         ];
     }, $rows);
@@ -219,6 +232,28 @@ function userOwnsStyle($conn, $user_id, $slot, $style) {
     $stmt->execute([$user_id, $slot, $style]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ? (bool) $row["owned"] : false;
+}
+
+/*
+ * Like userOwnsStyle, but also enforces the item's gender: a women-only item
+ * (gender 'female') can only be equipped by a female character. Used by
+ * equip_avatar so the client can never force an off-gender item.
+ */
+function userCanEquipStyle($conn, $user_id, $slot, $style, $gender) {
+    $stmt = $conn->prepare("
+        SELECT i.gender, (i.is_free = 1 OR ui.id IS NOT NULL) AS owned
+        FROM avatar_items i
+        LEFT JOIN user_items ui
+            ON ui.item_id = i.id AND ui.user_id = ?
+        WHERE i.slot = ? AND i.style = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$user_id, $slot, $style]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || !$row["owned"]) {
+        return false;
+    }
+    return $row["gender"] === "any" || $row["gender"] === $gender;
 }
 
 /*

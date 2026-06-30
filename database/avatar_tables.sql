@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS avatar_items (
     price_points INT(11) NOT NULL DEFAULT 0,
     is_free TINYINT(1) NOT NULL DEFAULT 0,
     preview_color VARCHAR(9) DEFAULT NULL,
+    gender VARCHAR(10) NOT NULL DEFAULT 'any',  -- 'any' | 'female' (women-only items)
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_avatar_item (slot, style)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
