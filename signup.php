@@ -24,10 +24,18 @@ $surname = $data["surname"] ?? "";
 $email = $data["email"] ?? "";
 $password = $data["password"] ?? "";
 $pin = trim($data["pin"] ?? "");
+$verified = $data["verified"] ?? false;
 
 /* VALIDATION */
 if(!$name || !$surname || !$email || !$password || !$pin){
     echo json_encode(["status"=>"error","message"=>"Missing fields"]);
+    exit;
+}
+
+/* KYC gate: the account can only be created after the mock identity
+   verification (front + back ID scan) has been completed on the client. */
+if($verified !== true){
+    echo json_encode(["status"=>"error","message"=>"Identity verification required"]);
     exit;
 }
 
