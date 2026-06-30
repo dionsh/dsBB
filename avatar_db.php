@@ -33,7 +33,7 @@ function avatarCatalogSeed() {
         ["hair",  "short",    "Short Hair",   0,   1, "#2A2A2A"],
         ["hair",  "curly",    "Curly Hair",   0,   1, "#2A2A2A"],
         ["hair",  "long",     "Long Hair",    0,   1, "#5A3A22"],
-        ["hair",  "buzz",     "Buzz Cut",     150, 0, "#2A2A2A"],
+        ["hair",  "buzz",     "Buzz Cut",     100, 0, "#2A2A2A"],
         ["hair",  "spiky",    "Spiky Hair",   250, 0, "#111827"],
         ["hair",  "bun",      "Top Bun",      300, 0, "#2A2A2A"],
 
@@ -53,7 +53,7 @@ function avatarCatalogSeed() {
         // shoes -------------------------------------------------------------
         ["shoes", "sneakers", "Sneakers",     0,   1, "#FFFFFF"],
         ["shoes", "boots",    "Boots",        0,   1, "#111827"],
-        ["shoes", "sandals",  "Sandals",      150, 0, "#6B4F2A"],
+        ["shoes", "sandals",  "Sandals",      100, 0, "#6B4F2A"],
         ["shoes", "hightops", "High-tops",    350, 0, "#E53935"],
     ];
 }
