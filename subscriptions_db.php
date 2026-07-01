@@ -45,23 +45,29 @@ function ensureSubscriptionSchema($conn) {
     seedSubscriptionPlans($conn);
 }
 
-/* Seed the catalog once (only if it is empty). */
+/*
+ * Seed / top up the catalog. Uses INSERT IGNORE keyed on the unique plan_key,
+ * so existing plans are left untouched and any NEW plans are added — that way
+ * new subscriptions appear even on databases that were already seeded.
+ */
 function seedSubscriptionPlans($conn) {
-    $count = (int) $conn->query("SELECT COUNT(*) FROM subscription_plans")->fetchColumn();
-    if ($count > 0) {
-        return;
-    }
-
     $plans = [
-        ["netflix", "Netflix",             12.99, "netflix",     "#E50914", 1],
-        ["spotify", "Spotify Premium",       9.99, "spotify",     "#1DB954", 2],
-        ["gym",     "Gym Membership",       29.99, "dumbbell",    "#FF7A00", 3],
-        ["codex",   "Codex Subscription",   19.99, "code-tags",   "#6C5CE7", 4],
-        ["prime",   "Amazon Prime",          8.99, "amazon",      "#00A8E1", 5],
+        ["netflix",    "Netflix",            12.99, "netflix",        "#E50914", 1],
+        ["spotify",    "Spotify Premium",     9.99, "spotify",        "#1DB954", 2],
+        ["gym",        "Gym Membership",     29.99, "dumbbell",       "#FF7A00", 3],
+        ["codex",      "Codex Subscription", 19.99, "code-tags",      "#6C5CE7", 4],
+        ["prime",      "Amazon Prime",        8.99, "amazon",         "#00A8E1", 5],
+        ["disney",     "Disney+",             8.99, "castle",         "#113CCF", 6],
+        ["youtube",    "YouTube Premium",    11.99, "youtube",        "#FF0000", 7],
+        ["xbox",       "Xbox Game Pass",     12.99, "microsoft-xbox", "#107C10", 8],
+        ["icloud",     "iCloud+",             2.99, "cloud-outline",  "#3693F3", 9],
+        ["applemusic", "Apple Music",        10.99, "music-circle",   "#FA243C", 10],
+        ["hbo",        "HBO Max",             9.99, "movie-open",     "#7E2CCB", 11],
+        ["audible",    "Audible",            14.99, "headphones",     "#F8991C", 12],
     ];
 
     $stmt = $conn->prepare("
-        INSERT INTO subscription_plans (plan_key, name, price, icon, color, sort_order)
+        INSERT IGNORE INTO subscription_plans (plan_key, name, price, icon, color, sort_order)
         VALUES (?, ?, ?, ?, ?, ?)
     ");
     foreach ($plans as $p) {
