@@ -64,7 +64,26 @@ try {
         exit;
     }
 
-    // 2) Everything else -> the LLM, kept on topic by the system prompt.
+    // 2) Spending / saving / budgeting questions -> attach an aggregated
+    //    financial snapshot (computed in PHP from MySQL) so NOVA coaches with
+    //    the user's REAL numbers. Aggregates only — never card/account numbers.
+    $systemPrompt = novaSystemPrompt();
+    if ($user_id && novaDetectCoachIntent($message)) {
+        try {
+            require "feature_db.php";
+            require "subscriptions_db.php";
+            require "analytics_db.php";
+            $facts = analyticsFactsText(computeAnalytics($conn, (int) $user_id));
+            $systemPrompt .= "\n\nCURRENT USER FINANCIAL SNAPSHOT (aggregated, non-sensitive, amounts in EUR):\n"
+                . $facts
+                . "\nWhen the user asks about their spending, subscriptions, savings, cashback, points or budget, answer using ONLY these real numbers. Round naturally and keep it short.";
+        } catch (Exception $e) {
+            error_log("NOVA coach context error: " . $e->getMessage());
+            // No snapshot — NOVA still answers, just without personal numbers.
+        }
+    }
+
+    // 3) Call the LLM, kept on topic by the system prompt.
     if (!novaProvider()) {
         echo json_encode([
             "status" => "success",
@@ -74,7 +93,7 @@ try {
         exit;
     }
 
-    $result = novaCallLLM(novaSystemPrompt(), $history, $message);
+    $result = novaCallLLM($systemPrompt, $history, $message);
 
     if ($result["ok"]) {
         echo json_encode(["status" => "success", "reply" => $result["reply"], "source" => "ai"]);

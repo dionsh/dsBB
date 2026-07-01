@@ -77,6 +77,11 @@ Features available in the app:
 - Round It Up: round purchases up and move the spare change to savings.
 - Rewards: earn points by playing the in-app Wordle game and the Driving game; 100 points = €1, redeemable to your balance.
 - Cashback: a partner marketplace; buying offers earns a separate cashback wallet you can redeem to your balance.
+- Subscriptions: manage subscriptions (Netflix, Spotify, ...); subscribing charges the monthly price, cancelling refunds it.
+- Analytics: a spending analytics dashboard with charts — categories, income vs expenses, weekly/monthly comparisons, savings growth, cashback and points.
+- AI Coach: NOVA analyzes the user's real spending and gives personalized insights, saving advice and budget suggestions.
+- Invest Simulator: practice investing with €10,000 of VIRTUAL money in simulated Tesla, Apple, Bitcoin, Gold and NASDAQ prices. It is a simulation for learning — no real money, not investment advice.
+- Voice: on the NOVA screen the user can tap the microphone to talk instead of typing, and NOVA can read replies aloud.
 - ATM Locations: an interactive map of DS Banking ATMs (Kosovo, Germany, Switzerland). ATMs are available 24/7.
 - Notifications: in-app inbox for sign-in and transfer alerts; can be turned on/off in Settings.
 - Settings: switch between light and dark theme, manage notifications.
@@ -139,6 +144,30 @@ function novaDetectAccountIntent($message) {
     if ($has(["balance", "how much money", "how much do i have", "my funds", "gjendja", "sa para kam"])) return "balance";
 
     return null;
+}
+
+/*
+ * Detect questions about the user's own spending / saving habits ("how much
+ * did I spend on subscriptions?", "can I afford...", "help me budget"). For
+ * these, nova_chat.php injects an aggregated financial snapshot into the
+ * system prompt so the LLM can coach with REAL numbers instead of guessing.
+ */
+function novaDetectCoachIntent($message) {
+    $m = mb_strtolower($message);
+
+    $needles = [
+        // English
+        "spend", "spent", "spending", "expense", "expenses", "budget",
+        "afford", "save", "saving", "savings", "subscription", "subscriptions",
+        "cashback", "points", "income", "how much did i", "this month",
+        "last month", "top category", "coach", "insight",
+        // Albanian
+        "shpenz", "kursim", "kurse", "buxhet", "abonim", "te ardhura", "të ardhura",
+    ];
+    foreach ($needles as $n) {
+        if (mb_strpos($m, $n) !== false) return true;
+    }
+    return false;
 }
 
 /*
