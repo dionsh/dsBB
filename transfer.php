@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 include "config.php";
 require "notifications_db.php";
+require "card_db.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -28,6 +29,11 @@ try {
     }
     if ($amount <= 0) {
         throw new Exception("Invalid amount");
+    }
+
+    // A frozen card cannot make payments (simulates a real bank's freeze).
+    if (isCardFrozen($conn, $sender_id)) {
+        throw new Exception("Your card is frozen. Unfreeze it to make payments.");
     }
 
     $conn->beginTransaction();
