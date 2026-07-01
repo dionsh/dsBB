@@ -14,23 +14,28 @@ require "notifications_db.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$name = $data["name"] ?? "";
-$surname = $data["surname"] ?? "";
+$name = trim($data["name"] ?? "");
+$surname = trim($data["surname"] ?? "");
+$email = trim($data["email"] ?? "");
 $pin = trim($data["pin"] ?? "");
 
-if(!$name || !$surname || !$pin){
+if(!$name || !$surname || !$email || !$pin){
     echo json_encode(["status"=>"error","message"=>"Missing fields"]);
     exit;
 }
 
 try {
-    /* gjan userin */
-    $stmt = $conn->prepare("SELECT * FROM users WHERE name=? AND surname=?");
-    $stmt->execute([$name, $surname]);
+    /*
+     * Gjan userin sipas email + emri + mbiemri.
+     * Email-i eshte unik, keshtu qe edhe nese dy persona kane te njejtin
+     * emer/mbiemer, ky query e zgjedh saktesisht llogarine e duhur (jo konflikt).
+     */
+    $stmt = $conn->prepare("SELECT * FROM users WHERE email=? AND name=? AND surname=?");
+    $stmt->execute([$email, $name, $surname]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if(!$user){
-        echo json_encode(["status"=>"error","message"=>"User not found"]);
+        echo json_encode(["status"=>"error","message"=>"User not found. Check your name, surname and email."]);
         exit;
     }
 
