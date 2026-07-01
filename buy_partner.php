@@ -29,6 +29,7 @@ try {
     ensureFeatureSchema($conn);
     ensureCashbackSchema($conn);
     seedPartners($conn);
+    normalizeCashbackOffers($conn);
 
     $conn->beginTransaction();
 
@@ -43,6 +44,9 @@ try {
     $price = round((float) $partner['price'], 2);
     $cashbackAmount = round($price * ((int) $partner['cashback_percent']) / 100, 2);
 
+    // Every purchase issues a unique ticket the user can show to redeem the offer.
+    $ticketCode = generateTicketCode($partner['name']);
+
     // Resolve the user's account and check the balance.
     $account = getUserAccountId($conn, $user_id);
     if (!$account) {
@@ -55,10 +59,17 @@ try {
     $houseAccountId = getHouseAccountId($conn);
     getOrCreateCashback($conn, $user_id);
 
-    // 1) The purchase price leaves the main balance.
+    // 1) The purchase price leaves the main balance. The ticket code is part of
+    //    the description so the purchase (with its ticket) shows in Transactions.
     $stmt = $conn->prepare("UPDATE accounts SET balance = balance - ? WHERE id = ?");
     $stmt->execute([$price, $account['id']]);
-    recordTransaction($conn, $account['id'], $houseAccountId, $price, "Cashback Purchase - " . $partner['name']);
+    recordTransaction(
+        $conn,
+        $account['id'],
+        $houseAccountId,
+        $price,
+        "Cashback Purchase - " . $partner['name'] . " (Ticket " . $ticketCode . ")"
+    );
 
     // 2) The earned cashback goes into the user's cashback wallet.
     $stmt = $conn->prepare("
@@ -68,12 +79,12 @@ try {
     ");
     $stmt->execute([$cashbackAmount, $cashbackAmount, $user_id]);
 
-    // 3) Record the purchase for the history list.
+    // 3) Record the purchase (with its ticket) for the history list.
     $stmt = $conn->prepare("
-        INSERT INTO partner_purchases (user_id, partner_id, partner_name, price, cashback_amount)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO partner_purchases (user_id, partner_id, partner_name, price, cashback_amount, ticket_code)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$user_id, $partner['id'], $partner['name'], $price, $cashbackAmount]);
+    $stmt->execute([$user_id, $partner['id'], $partner['name'], $price, $cashbackAmount, $ticketCode]);
 
     // Read back fresh balances.
     $wallet = getOrCreateCashback($conn, $user_id);
@@ -87,6 +98,7 @@ try {
         "partner"          => $partner['name'],
         "price"            => $price,
         "cashback_earned"  => $cashbackAmount,
+        "ticket_code"      => $ticketCode,
         "new_balance"      => $newBalance,
         "cashback_balance" => round((float) $wallet['balance'], 2),
         "total_earned"     => round((float) $wallet['total_earned'], 2),

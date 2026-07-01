@@ -11,6 +11,7 @@ $user_id = $_GET["user_id"] ?? null;
 try {
     ensureCashbackSchema($conn);
     seedPartners($conn);
+    normalizeCashbackOffers($conn);
 
     // Active partner offers.
     $stmt = $conn->query("
@@ -33,7 +34,7 @@ try {
         $totalEarned = (float) $wallet["total_earned"];
 
         $stmt = $conn->prepare("
-            SELECT id, partner_id, partner_name, price, cashback_amount, created_at
+            SELECT id, partner_id, partner_name, price, cashback_amount, ticket_code, created_at
             FROM partner_purchases
             WHERE user_id = ?
             ORDER BY created_at DESC, id DESC
