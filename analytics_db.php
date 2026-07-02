@@ -53,10 +53,12 @@ function analyticsCategory($desc, $isHouse, $partnerCats) {
 
     if (stripos($d, "Split Bill") === 0) return "Split Bills";
 
-    // Money moved into savings (round-ups + goal deposits) — kept out of the
-    // "expenses" totals and shown in the Savings growth section instead.
+    // Money moved into savings (round-ups + goal deposits + shared group
+    // contributions) — kept out of the "expenses" totals and shown in the
+    // Savings growth section instead.
     if (stripos($d, "Savings Goal") === 0)    return "Savings";
     if (stripos($d, "Round Up Savings") === 0) return "Savings";
+    if (stripos($d, "Shared Goal") === 0)      return "Savings";
 
     if (!$isHouse) return "Transfers";
 

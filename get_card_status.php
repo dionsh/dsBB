@@ -13,10 +13,13 @@ if (!$user_id) {
 }
 
 try {
-    $frozen = isCardFrozen($conn, $user_id);
+    $frozen   = isCardFrozen($conn, $user_id);
+    $controls = getCardControls($conn, $user_id);
     echo json_encode([
-        "status" => "success",
-        "frozen" => $frozen,
+        "status"              => "success",
+        "frozen"              => $frozen,
+        "online_locked"       => $controls["online_locked"],
+        "contactless_enabled" => $controls["contactless_enabled"],
     ]);
 } catch (Exception $e) {
     echo json_encode(["status" => "error", "message" => $e->getMessage()]);

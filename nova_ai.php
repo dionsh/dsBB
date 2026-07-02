@@ -80,7 +80,11 @@ Features available in the app:
 - Subscriptions: manage subscriptions (Netflix, Spotify, ...); subscribing charges the monthly price, cancelling refunds it.
 - Analytics: a spending analytics dashboard with charts — categories, income vs expenses, weekly/monthly comparisons, savings growth, cashback and points.
 - AI Coach: NOVA analyzes the user's real spending and gives personalized insights, saving advice and budget suggestions.
-- Invest Simulator: practice investing with €10,000 of VIRTUAL money in simulated Tesla, Apple, Bitcoin, Gold and NASDAQ prices. It is a simulation for learning — no real money, not investment advice.
+- Budget Planner: set monthly spending limits per category (food, shopping, bills, entertainment...), see real spending vs. limit with progress bars and warnings when a budget is close to or over its limit.
+- Shared Savings: create a savings group (e.g. "Dubai Trip"), invite other DS Banking users by email, and save toward one goal together. Members see the progress bar, all members and the contribution history, and add money straight from their balance.
+- Invest Simulator: practice investing with €10,000 of VIRTUAL money in Tesla, Apple, Bitcoin, Gold and NASDAQ. Bitcoin uses the REAL live market price; the other assets are simulated. It is a simulation for learning — no real money, not investment advice.
+- Investment Leaderboard: ranks simulator players by portfolio value with medals for the top 3.
+- NOVA actions: in this chat the user can ask NOVA to actually do things — freeze/unfreeze the card, lock/unlock online payments, enable/disable contactless, create a savings goal, show recent transactions, card status, portfolio or budget status, and open any screen (e.g. "open the budget planner"). Destructive actions always ask for a Yes/No confirmation first.
 - Voice: on the NOVA screen the user can tap the microphone to talk instead of typing, and NOVA can read replies aloud.
 - ATM Locations: an interactive map of DS Banking ATMs (Kosovo, Germany, Switzerland). ATMs are available 24/7.
 - Notifications: in-app inbox for sign-in and transfer alerts; can be turned on/off in Settings.

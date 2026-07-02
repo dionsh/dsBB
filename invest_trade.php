@@ -73,7 +73,8 @@ try {
         throw new Exception("Minimum trade is €1.00");
     }
 
-    $price = investPriceAt($assets[$asset], time());
+    // Bitcoin trades at the real live market price; other assets stay simulated.
+    $price = investCurrentPrice($conn, $assets[$asset], time());
 
     $conn->beginTransaction();
 

@@ -39,14 +39,33 @@ try {
     $now    = time();
     $assets = investAssets();
 
-    // Asset list with live price, 24h change and the chart series.
+    // Asset list with current price, 24h change and the chart series.
+    // Bitcoin's price is the REAL market price (investCurrentPrice); its
+    // deterministic series is rescaled so the chart ends exactly at the live
+    // price and stays smooth.
     $assetsOut = [];
     $priceNow  = [];
     $seriesAll = [];
     foreach ($assets as $key => $a) {
-        $p    = investPriceAt($a, $now);
+        $det  = investPriceAt($a, $now);
+        $p    = investCurrentPrice($conn, $a, $now);
         $pAgo = investPriceAt($a, $now - 86400);
         $s    = investSeries($a, $range, $now);
+
+        $isLive    = ($key === "bitcoin" && abs($p - $det) > 0.001);
+        $changePct = $pAgo > 0 ? round(($det - $pAgo) / $pAgo * 100, 2) : 0;
+
+        if ($isLive && $det > 0) {
+            // Scale the whole curve so its last point equals the live price.
+            $factor = $p / $det;
+            foreach ($s as $i => $v) {
+                $s[$i] = round($v * $factor, 2);
+            }
+            $live = investLiveBtc($conn);
+            if ($live && $live["change_24h_pct"] !== null) {
+                $changePct = $live["change_24h_pct"];
+            }
+        }
 
         $priceNow[$key]  = $p;
         $seriesAll[$key] = $s;
@@ -57,8 +76,9 @@ try {
             "icon"           => $a["icon"],
             "color"          => $a["color"],
             "price"          => $p,
-            "change_24h_pct" => $pAgo > 0 ? round(($p - $pAgo) / $pAgo * 100, 2) : 0,
+            "change_24h_pct" => $changePct,
             "series"         => $s,
+            "live"           => $isLive,
         ];
     }
 

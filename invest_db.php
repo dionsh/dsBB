@@ -126,6 +126,124 @@ function investPriceAt($asset, $ts) {
     return round($price, 2);
 }
 
+/* ------------------------------------------------------------------ */
+/* Live Bitcoin price                                                   */
+/*                                                                      */
+/* Bitcoin is the one asset priced from the REAL market: the current    */
+/* EUR price comes from the free CoinGecko API. It is cached in MySQL   */
+/* (Render instances are ephemeral) and refreshed at most once every    */
+/* two minutes, so we stay far below the free rate limits. If the API   */
+/* is unreachable the last cached price is used, and with no cache at   */
+/* all the deterministic engine takes over — the simulator never dies.  */
+/* ------------------------------------------------------------------ */
+
+function ensureInvestPriceCache($conn) {
+    $conn->exec("
+        CREATE TABLE IF NOT EXISTS invest_price_cache (
+            asset VARCHAR(20) NOT NULL PRIMARY KEY,
+            price DECIMAL(14,2) NOT NULL,
+            change_24h_pct DECIMAL(8,2) DEFAULT NULL,
+            fetched_at INT(11) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ");
+}
+
+/*
+ * The live BTC price in EUR: ["price" => float, "change_24h_pct" => float|null]
+ * or null when nothing (fresh or cached) is available.
+ */
+function investLiveBtc($conn) {
+    static $memo = false; // one lookup per request
+    if ($memo !== false) return $memo;
+
+    try {
+        ensureInvestPriceCache($conn);
+
+        $stmt = $conn->prepare("SELECT price, change_24h_pct, fetched_at FROM invest_price_cache WHERE asset = 'bitcoin'");
+        $stmt->execute();
+        $cached = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Fresh enough (2 min)? Use it without hitting the API.
+        if ($cached && (time() - (int) $cached["fetched_at"]) < 120) {
+            return $memo = [
+                "price"          => round((float) $cached["price"], 2),
+                "change_24h_pct" => $cached["change_24h_pct"] !== null ? round((float) $cached["change_24h_pct"], 2) : null,
+            ];
+        }
+
+        $live = investFetchBtcFromApi();
+        if ($live) {
+            $stmt = $conn->prepare("
+                INSERT INTO invest_price_cache (asset, price, change_24h_pct, fetched_at)
+                VALUES ('bitcoin', ?, ?, ?)
+                ON DUPLICATE KEY UPDATE price = VALUES(price),
+                                        change_24h_pct = VALUES(change_24h_pct),
+                                        fetched_at = VALUES(fetched_at)
+            ");
+            $stmt->execute([$live["price"], $live["change_24h_pct"], time()]);
+            return $memo = $live;
+        }
+
+        // API down — a stale price is still far better than a fake one.
+        if ($cached) {
+            return $memo = [
+                "price"          => round((float) $cached["price"], 2),
+                "change_24h_pct" => $cached["change_24h_pct"] !== null ? round((float) $cached["change_24h_pct"], 2) : null,
+            ];
+        }
+    } catch (Exception $e) {
+        error_log("Live BTC price error: " . $e->getMessage());
+    }
+
+    return $memo = null;
+}
+
+/* One CoinGecko call (free, no API key). Returns the same shape or null. */
+function investFetchBtcFromApi() {
+    $url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur&include_24hr_change=true";
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_HTTPHEADER     => ["Accept: application/json"],
+        CURLOPT_USERAGENT      => "DSBanking/1.0",
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($raw === false || $code !== 200) return null;
+
+    $json  = json_decode($raw, true);
+    $price = $json["bitcoin"]["eur"] ?? null;
+    if (!is_numeric($price) || (float) $price <= 0) return null;
+
+    $change = $json["bitcoin"]["eur_24h_change"] ?? null;
+
+    return [
+        "price"          => round((float) $price, 2),
+        "change_24h_pct" => is_numeric($change) ? round((float) $change, 2) : null,
+    ];
+}
+
+/*
+ * Current tradable price of one asset. Bitcoin uses the live market price;
+ * everything else stays on the deterministic engine. Both get_invest.php and
+ * invest_trade.php price through here so charts and trades always agree.
+ */
+function investCurrentPrice($conn, $asset, $now = null) {
+    $now = $now ?: time();
+    if ($asset["key"] === "bitcoin") {
+        $live = investLiveBtc($conn);
+        if ($live && $live["price"] > 0) {
+            return $live["price"];
+        }
+    }
+    return investPriceAt($asset, $now);
+}
+
 /* Chart ranges: label => [step in seconds, number of points]. */
 function investRanges() {
     return [

@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require "config.php";
 require "nova_ai.php";
+require_once "nova_actions.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -47,6 +48,16 @@ if (mb_strlen($message) > 1000) {
 }
 
 try {
+    // 0) Banking ACTIONS ("freeze my card", "open the budget planner",
+    //    "show my transactions") -> handled deterministically. State-changing
+    //    actions come back with confirm=true so the app can show Yes/No
+    //    buttons and only execute via nova_action.php after a Yes.
+    $actionIntent = novaDetectActionIntent($message);
+    if ($actionIntent) {
+        echo json_encode(novaActionResponse($conn, $user_id, $actionIntent));
+        exit;
+    }
+
     // 1) Account-data questions -> deterministic answer from the database.
     $intent = novaDetectAccountIntent($message);
     if ($intent) {
@@ -70,9 +81,9 @@ try {
     $systemPrompt = novaSystemPrompt();
     if ($user_id && novaDetectCoachIntent($message)) {
         try {
-            require "feature_db.php";
-            require "subscriptions_db.php";
-            require "analytics_db.php";
+            require_once "feature_db.php";
+            require_once "subscriptions_db.php";
+            require_once "analytics_db.php";
             $facts = analyticsFactsText(computeAnalytics($conn, (int) $user_id));
             $systemPrompt .= "\n\nCURRENT USER FINANCIAL SNAPSHOT (aggregated, non-sensitive, amounts in EUR):\n"
                 . $facts
