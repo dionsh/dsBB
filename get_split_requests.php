@@ -7,11 +7,13 @@
  * Request:  GET ?user_id=7
  * Response: {
  *   status,
- *   friends:  [ { id, name, email } ],
  *   incoming: [ { id, requester_name, total_amount, share_amount, note, created_at } ],
  *   sent:     [ { id, friend_name, total_amount, share_amount, note, status,
  *                 created_at, responded_at } ]
  * }
+ *
+ * Note: deliberately does NOT return a user list — the requester types their
+ * friend's email and it is verified server-side (like Shared Savings invites).
  */
 
 header("Access-Control-Allow-Origin: *");
@@ -30,10 +32,6 @@ if (!$user_id) {
 
 try {
     ensureSplitRequestsSchema($conn);
-
-    /* ---------- who can I split with ---------- */
-
-    $friends = splitFriendList($conn, $user_id);
 
     /* ---------- pending requests waiting for MY answer ---------- */
 
@@ -86,7 +84,6 @@ try {
 
     echo json_encode([
         "status"   => "success",
-        "friends"  => $friends,
         "incoming" => $incoming,
         "sent"     => $sent,
     ]);

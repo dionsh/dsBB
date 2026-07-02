@@ -14,6 +14,7 @@
  *                               'active'   -> accepted, can contribute
  *                               'declined' -> said no
  *   shared_goal_contributions - every deposit, for the history list
+ *   shared_goal_messages      - the group chat (active members only)
  *
  * Money contributed LEAVES the member's main balance (recorded in the ledger
  * against the house account, like savings goals), so the accounting stays
@@ -65,6 +66,17 @@ function ensureSharedGoalsSchema($conn) {
             amount DECIMAL(12,2) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             KEY idx_shared_contrib_goal (goal_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ");
+
+    $conn->exec("
+        CREATE TABLE IF NOT EXISTS shared_goal_messages (
+            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            goal_id INT(11) NOT NULL,
+            user_id INT(11) NOT NULL,
+            message VARCHAR(500) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_shared_msg_goal (goal_id, id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ");
 }
@@ -143,4 +155,32 @@ function sharedGoalMembers($conn, $goal_id) {
         ];
     }
     return $members;
+}
+
+/*
+ * The last $limit chat messages of a group, oldest first (ready to render
+ * top-to-bottom), each with the sender's display name.
+ */
+function sharedGoalMessages($conn, $goal_id, $limit = 50) {
+    $stmt = $conn->prepare("
+        SELECT m.id, m.user_id, m.message, m.created_at, u.name, u.surname
+        FROM shared_goal_messages m
+        JOIN users u ON u.id = m.user_id
+        WHERE m.goal_id = ?
+        ORDER BY m.id DESC
+        LIMIT " . (int) $limit . "
+    ");
+    $stmt->execute([$goal_id]);
+
+    $messages = [];
+    while ($m = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $messages[] = [
+            "id"         => (int) $m["id"],
+            "user_id"    => (int) $m["user_id"],
+            "name"       => trim($m["name"] . " " . $m["surname"]),
+            "message"    => $m["message"],
+            "created_at" => $m["created_at"],
+        ];
+    }
+    return array_reverse($messages); // oldest first
 }

@@ -61,40 +61,18 @@ function splitUserName($conn, $user_id) {
 }
 
 /*
- * Verify the chosen friend is a real, login-capable account (the hidden house
- * account has a NULL password and must never receive requests).
- * Returns ["id" => .., "name" => .., "surname" => ..] or null.
+ * Find the friend by the email the user typed (like Shared Savings invites —
+ * the account is verified server-side; user lists are never exposed to the
+ * app). The hidden house account has a NULL password and must never receive
+ * requests. Returns ["id" => .., "name" => .., "surname" => ..] or null.
  */
-function findSplitFriend($conn, $friend_id) {
+function findSplitFriendByEmail($conn, $email) {
     $stmt = $conn->prepare("
         SELECT id, name, surname FROM users
-        WHERE id = ? AND password IS NOT NULL
+        WHERE email = ? AND password IS NOT NULL
         LIMIT 1
     ");
-    $stmt->execute([$friend_id]);
+    $stmt->execute([trim($email)]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
-}
-
-/*
- * Everyone the user can split a bill with — all other real DS Banking users,
- * for the friend picker in the app.
- */
-function splitFriendList($conn, $user_id) {
-    $stmt = $conn->prepare("
-        SELECT id, name, surname, email FROM users
-        WHERE password IS NOT NULL AND id <> ?
-        ORDER BY name ASC, surname ASC
-    ");
-    $stmt->execute([$user_id]);
-
-    $friends = [];
-    while ($u = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $friends[] = [
-            "id"    => (int) $u["id"],
-            "name"  => trim($u["name"] . " " . $u["surname"]),
-            "email" => $u["email"],
-        ];
-    }
-    return $friends;
 }

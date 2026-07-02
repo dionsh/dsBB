@@ -2,11 +2,13 @@
 /*
  * create_split_request.php
  *
- * Send a Split The Bill request to another DS Banking user. The bill is
- * split equally in two — nothing is charged until the friend accepts.
+ * Send a Split The Bill request to another DS Banking user, identified by
+ * the email the requester types (verified server-side, like Shared Savings
+ * invites). The bill is split equally in two — nothing is charged until the
+ * friend accepts.
  *
- * Request (POST JSON): { "user_id": 7, "friend_id": 9, "total": 40, "note": "Dinner" }
- * Response: { status, message, request_id, share }
+ * Request (POST JSON): { "user_id": 7, "email": "friend@mail.com", "total": 40, "note": "Dinner" }
+ * Response: { status, message, request_id, share, friend_name }
  */
 
 header("Access-Control-Allow-Origin: *");
@@ -26,17 +28,17 @@ require "notifications_db.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$user_id   = $data["user_id"] ?? null;
-$friend_id = $data["friend_id"] ?? null;
-$total     = floatval($data["total"] ?? 0);
-$note      = trim($data["note"] ?? "");
+$user_id = $data["user_id"] ?? null;
+$email   = trim($data["email"] ?? "");
+$total   = floatval($data["total"] ?? 0);
+$note    = trim($data["note"] ?? "");
 
 try {
-    if (!$user_id || !$friend_id) {
-        throw new Exception("Missing user or friend");
+    if (!$user_id) {
+        throw new Exception("Missing user");
     }
-    if ((int) $friend_id === (int) $user_id) {
-        throw new Exception("You can't split a bill with yourself");
+    if ($email === "") {
+        throw new Exception("Please enter your friend's email address");
     }
     if ($total <= 0) {
         throw new Exception("Enter a valid bill amount");
@@ -45,9 +47,14 @@ try {
     ensureFeatureSchema($conn);
     ensureSplitRequestsSchema($conn);
 
-    $friend = findSplitFriend($conn, $friend_id);
+    // Verify the friend's account actually exists.
+    $friend = findSplitFriendByEmail($conn, $email);
     if (!$friend) {
-        throw new Exception("Friend not found");
+        throw new Exception("No DS Banking account found with that email");
+    }
+    $friend_id = (int) $friend["id"];
+    if ($friend_id === (int) $user_id) {
+        throw new Exception("You can't split a bill with yourself");
     }
 
     // One open request per friend at a time keeps things tidy.
@@ -74,7 +81,7 @@ try {
     try {
         addNotification(
             $conn,
-            (int) $friend["id"],
+            $friend_id,
             "split_request",
             "Split the bill request",
             splitUserName($conn, $user_id) . " wants to split a bill of "
@@ -87,10 +94,11 @@ try {
     }
 
     echo json_encode([
-        "status"     => "success",
-        "message"    => "Request sent to " . trim($friend["name"] . " " . $friend["surname"]),
-        "request_id" => $requestId,
-        "share"      => $share,
+        "status"      => "success",
+        "message"     => "Request sent to " . trim($friend["name"] . " " . $friend["surname"]),
+        "request_id"  => $requestId,
+        "share"       => $share,
+        "friend_name" => trim($friend["name"] . " " . $friend["surname"]),
     ]);
 
 } catch (Exception $e) {

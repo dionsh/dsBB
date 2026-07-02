@@ -80,3 +80,14 @@ CREATE TABLE IF NOT EXISTS `invest_price_cache` (
   `change_24h_pct` DECIMAL(8,2) DEFAULT NULL,
   `fetched_at` INT(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Shared Savings Groups: the group chat (added later). Active members can
+-- read/write; auto-created by ensureSharedGoalsSchema() like the rest.
+CREATE TABLE IF NOT EXISTS `shared_goal_messages` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `goal_id` INT(11) NOT NULL,
+  `user_id` INT(11) NOT NULL,
+  `message` VARCHAR(500) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_shared_msg_goal` (`goal_id`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
