@@ -20,11 +20,14 @@ $sender_id = $data['sender_id'] ?? null;
 // Transfers are addressed by the receiver's 16-digit account number
 // (the app strips spaces before sending, but strip again to be safe).
 $receiver_account_number = preg_replace('/\D/', '', (string) ($data['receiver_account_number'] ?? ''));
+// Emri + mbiemri qe useri i shkruan — duhet te perputhen me pronarin e llogarise.
+$receiver_name    = trim((string) ($data['receiver_name'] ?? ''));
+$receiver_surname = trim((string) ($data['receiver_surname'] ?? ''));
 $amount = floatval($data['amount'] ?? 0);
 $message = $data['message'] ?? "";
 
 try {
-    if (!$sender_id || !$receiver_account_number) {
+    if (!$sender_id || !$receiver_account_number || $receiver_name === '' || $receiver_surname === '') {
         throw new Exception("Missing sender or receiver information");
     }
     if (strlen($receiver_account_number) !== 16) {
@@ -62,6 +65,20 @@ try {
     // nuk lejohet me i dergu vetes
     if ((int) $receiver['id'] === (int) $sender['id']) {
         throw new Exception("You cannot transfer money to your own account");
+    }
+
+    // Emri + mbiemri duhet te perputhen me pronarin e vertete te llogarise
+    // (mbron nga gabimet ne numrin e llogarise). Krahasim pa ndjeshmeri ndaj
+    // shkronjave te medha/vogla dhe hapesirave (DB-ja mund te kete hapesira).
+    $lower = function ($s) {
+        return function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+    };
+    $normalize = function ($s) use ($lower) {
+        return preg_replace('/\s+/', ' ', trim($lower((string) $s)));
+    };
+    if ($normalize($receiver_name) !== $normalize($receiver['receiver_name'])
+        || $normalize($receiver_surname) !== $normalize($receiver['receiver_surname'])) {
+        throw new Exception("The name and surname do not match this account number");
     }
 
     // shikon balancen e derguesit
