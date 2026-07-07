@@ -17,15 +17,18 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 // merr infot e sender edhe receiver
 $sender_id = $data['sender_id'] ?? null;
-$receiver_email = $data['receiver_email'] ?? null;
-$receiver_name = $data['receiver_name'] ?? null;
-$receiver_surname = $data['receiver_surname'] ?? null;
+// Transfers are addressed by the receiver's 16-digit account number
+// (the app strips spaces before sending, but strip again to be safe).
+$receiver_account_number = preg_replace('/\D/', '', (string) ($data['receiver_account_number'] ?? ''));
 $amount = floatval($data['amount'] ?? 0);
 $message = $data['message'] ?? "";
 
 try {
-    if (!$sender_id || !$receiver_email || !$receiver_name || !$receiver_surname) {
+    if (!$sender_id || !$receiver_account_number) {
         throw new Exception("Missing sender or receiver information");
+    }
+    if (strlen($receiver_account_number) !== 16) {
+        throw new Exception("Account number must be 16 digits");
     }
     if ($amount <= 0) {
         throw new Exception("Invalid amount");
@@ -44,15 +47,22 @@ try {
     $sender = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$sender) throw new Exception("Sender account not found");
 
-    // merr acc t pritesit (receiver) (by email + name + surname)
+    // merr acc t pritesit (receiver) by account number.
+    // The hidden house account is excluded so it can never be a transfer target.
     $stmt = $conn->prepare("
-        SELECT a.* FROM accounts a
+        SELECT a.*, u.name AS receiver_name, u.surname AS receiver_surname
+        FROM accounts a
         JOIN users u ON a.user_id = u.id
-        WHERE u.email = ? AND u.name = ? AND u.surname = ?
+        WHERE a.account_number = ? AND u.email <> 'house@dsbanking.local'
     ");
-    $stmt->execute([$receiver_email, $receiver_name, $receiver_surname]);
+    $stmt->execute([$receiver_account_number]);
     $receiver = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$receiver) throw new Exception("Receiver account not found");
+    if (!$receiver) throw new Exception("No account found with that account number");
+
+    // nuk lejohet me i dergu vetes
+    if ((int) $receiver['id'] === (int) $sender['id']) {
+        throw new Exception("You cannot transfer money to your own account");
+    }
 
     // shikon balancen e derguesit
     if ($sender['balance'] < $amount) {
@@ -95,21 +105,28 @@ try {
             "You received " . $amountStr . " EUR from " . $senderName . "."
         );
 
-        // Derguesi: konfirmim qe ka derguar pare
+        // Derguesi: konfirmim qe ka derguar pare (emri i vertete i pranuesit nga DB)
         addNotification(
             $conn,
             $sender_id,
             "sent",
             "Transfer sent",
-            "You sent " . $amountStr . " EUR to " . trim($receiver_name . ' ' . $receiver_surname) . "."
+            "You sent " . $amountStr . " EUR to " . trim($receiver['receiver_name'] . ' ' . $receiver['receiver_surname']) . "."
         );
     } catch (Exception $e) {
         // ignore notification errors
     }
 
+    // Konfirmimi permban emrin e vertete te pranuesit qe useri ta shoh
+    // se kujt i shkuan parat (numri i llogarise nuk tregon emer vet).
     echo json_encode([
         "status" => "success",
-        "message" => "Transfer completed"
+        "message" => "Transfer completed. " . number_format($amount, 2) . " EUR sent to "
+                   . trim($receiver['receiver_name'] . ' ' . $receiver['receiver_surname']) . ".",
+        "receiver" => [
+            "name"    => $receiver['receiver_name'],
+            "surname" => $receiver['receiver_surname'],
+        ]
     ]);
 
 } catch (Exception $e) {
