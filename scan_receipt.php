@@ -14,8 +14,16 @@
  *   GEMINI_API_KEY    -> Gemini vision (default model: gemini-2.0-flash)
  *   NOVA_VISION_MODEL -> optional override if the default model name changes
  *
+ * We extract ONLY the three values Split The Bill needs and ignore every other
+ * price on the receipt (item lines, subtotals, VAT/TVSH, discounts, change):
+ *   - total      = the FINAL total ("TOTALI NE EURO" on Albanian fiscal receipts)
+ *   - date       = the receipt date (DD.MM.YYYY)
+ *   - receipt_id = the receipt serial number ("NR. SERIK")
+ * If any of the three is missing the receipt is treated as invalid.
+ *
  * Request  (POST JSON): { "image_base64": "<raw base64 jpeg>" }
- * Response (success):   { status, is_receipt, total, currency, date, receipt_id }
+ * Response (valid):     { status, valid:true,  total, date, receipt_id }
+ *          (invalid):   { status, valid:false, message, total, date, receipt_id }
  *          (error):     { status:"error", message }
  */
 
@@ -34,17 +42,22 @@ require "nova_ai.php"; // novaProvider()
 define("RECEIPT_MAX_B64", 12 * 1024 * 1024); // ~12 MB of base64
 
 $RECEIPT_PROMPT =
-    "You are an OCR system that reads shop receipts and invoices. Look at the image and " .
-    "decide whether it is a purchase receipt or invoice. Extract THREE things: " .
-    "1) total = the FINAL total amount actually paid, as a number using a dot as the decimal " .
-    "separator and NO currency symbol; " .
-    "2) date = the receipt date formatted as DD.MM.YYYY; " .
-    "3) receipt_id = the receipt / invoice / bill number printed on it. " .
+    "You are a precise OCR system that reads point-of-sale receipts, including Kosovo/Albanian " .
+    "fiscal receipts. From the image, extract EXACTLY these three fields and nothing else:\n" .
+    "1) total -> the FINAL total amount paid. On Albanian receipts this is the line labelled " .
+    "'TOTALI NE EURO' or 'TOTALI NË EURO'. If that exact label is absent, use the grand-total line " .
+    "('TOTAL', 'TOTAL EUR', 'SHUMA TOTALE'). Return it as a number with a dot as the decimal " .
+    "separator and NO currency symbol. Do NOT return any other amount — ignore individual item " .
+    "prices, subtotals, VAT/TVSH, discounts, cash tendered and change.\n" .
+    "2) date -> the receipt date, formatted as DD.MM.YYYY.\n" .
+    "3) receipt_id -> the receipt serial number, labelled 'NR. SERIK' (accept 'NR SERIK', " .
+    "'NR.SERIK', 'SERIA', 'NR. FATURES', 'Invoice No'). Return it exactly as printed.\n" .
     "Reply with ONLY a compact JSON object — no markdown, no code fences, no commentary — " .
-    'exactly in this shape: ' .
-    '{"is_receipt": true or false, "total": number or null, "currency": string or null, ' .
-    '"date": string or null, "receipt_id": string or null}. ' .
-    "If the image is not a receipt, set is_receipt to false and the other fields to null.";
+    "exactly in this shape: " .
+    '{"is_receipt": true or false, "total": number or null, "date": "DD.MM.YYYY" or null, ' .
+    '"receipt_id": string or null}. ' .
+    "Set a field to null ONLY when it is genuinely not printed on the receipt. " .
+    "If the image is not a receipt at all, set is_receipt to false and the other fields to null.";
 
 /* Pull the first {...} JSON object out of an LLM reply and decode it. */
 function receiptParseJson($text) {
@@ -177,15 +190,41 @@ try {
         exit;
     }
 
-    $total = (isset($parsed["total"]) && is_numeric($parsed["total"])) ? round((float) $parsed["total"], 2) : null;
+    // Normalise the three required fields.
+    $total = (isset($parsed["total"]) && is_numeric($parsed["total"]))
+        ? round((float) $parsed["total"], 2)
+        : null;
+    $date = (isset($parsed["date"]) && trim((string) $parsed["date"]) !== "")
+        ? trim((string) $parsed["date"])
+        : null;
+    $receiptId = (isset($parsed["receipt_id"]) && trim((string) $parsed["receipt_id"]) !== "")
+        ? trim((string) $parsed["receipt_id"])
+        : null;
+    $isReceipt = !empty($parsed["is_receipt"]);
+
+    // A receipt is valid ONLY when all three required fields are present. If any
+    // is missing (or it isn't a receipt), report it as invalid with a clear
+    // message so the app can tell the user exactly what happened.
+    if (!$isReceipt || $total === null || $total <= 0 || $date === null || $receiptId === null) {
+        echo json_encode([
+            "status"     => "success",
+            "valid"      => false,
+            "is_receipt" => $isReceipt,
+            "total"      => $total,
+            "date"       => $date,
+            "receipt_id" => $receiptId,
+            "message"    => "This receipt could not be validated because the required information is missing.",
+        ]);
+        exit;
+    }
 
     echo json_encode([
         "status"     => "success",
-        "is_receipt" => !empty($parsed["is_receipt"]),
+        "valid"      => true,
+        "is_receipt" => true,
         "total"      => $total,
-        "currency"   => $parsed["currency"] ?? null,
-        "date"       => $parsed["date"] ?? null,
-        "receipt_id" => $parsed["receipt_id"] ?? null,
+        "date"       => $date,
+        "receipt_id" => $receiptId,
     ]);
 
 } catch (Exception $e) {
