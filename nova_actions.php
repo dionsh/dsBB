@@ -132,7 +132,18 @@ function novaDetectActionIntent($message) {
 
     /* ---------- navigation ---------- */
 
-    $navVerb = $has(["open ", "go to ", "goto ", "take me", "navigate", "bring me", "hap ", "shko te", "shko tek", "çoje", "öffne", "geh zu", "zeig mir", "ouvre", "va à", "va a ", "emmène", "emmene"]);
+    $navVerb = $has([
+        // English — cover the natural ways people ask to be taken to a screen.
+        "open ", "open up", "go to ", "goto ", "go into", "take me", "send me",
+        "get me to", "bring me", "show me the", "navigate", "switch to", "jump to",
+        "i want to go", "i wanna go", "i'd like to go", "let's go to", "lets go to",
+        // Albanian
+        "hap ", "shko te", "shko tek", "çoje", "coje", "dërgomë", "dergome", "më ço", "me co",
+        // German
+        "öffne", "geh zu", "zeig mir", "bring mich",
+        // French
+        "ouvre", "va à", "va a ", "emmène", "emmene", "amène", "amene",
+    ]);
 
     // route name in the app => matching phrases
     $screens = [
