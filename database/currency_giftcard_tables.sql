@@ -51,3 +51,11 @@ CREATE TABLE IF NOT EXISTS card_design_purchases (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_user_design (user_id, design_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Which design the user currently displays on their card (one row per user).
+-- Set via set_primary_design.php (only the free classic or an owned design).
+CREATE TABLE IF NOT EXISTS user_primary_design (
+    user_id INT(11) NOT NULL PRIMARY KEY,
+    design_id VARCHAR(40) NOT NULL DEFAULT 'classic',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

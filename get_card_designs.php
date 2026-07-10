@@ -22,8 +22,9 @@ try {
     ensureCardDesignSchema($conn);
 
     echo json_encode([
-        "status" => "success",
-        "owned"  => getOwnedCardDesigns($conn, $user_id),
+        "status"  => "success",
+        "owned"   => getOwnedCardDesigns($conn, $user_id),
+        "primary" => getPrimaryDesign($conn, $user_id),
     ]);
 
 } catch (Exception $e) {

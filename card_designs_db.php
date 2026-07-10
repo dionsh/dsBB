@@ -17,7 +17,7 @@
  * Requires config.php (provides $conn) to have been included.
  */
 
-/* Create the purchases table once (cheap + idempotent on every request). */
+/* Create the purchases + primary-design tables once (idempotent). */
 function ensureCardDesignSchema($conn) {
     $conn->exec("
         CREATE TABLE IF NOT EXISTS card_design_purchases (
@@ -28,6 +28,15 @@ function ensureCardDesignSchema($conn) {
             price DECIMAL(10,2) NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_user_design (user_id, design_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ");
+
+    // Which design the user currently displays on their card (one row/user).
+    $conn->exec("
+        CREATE TABLE IF NOT EXISTS user_primary_design (
+            user_id INT(11) NOT NULL PRIMARY KEY,
+            design_id VARCHAR(40) NOT NULL DEFAULT 'classic',
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ");
 }
@@ -62,4 +71,38 @@ function getOwnedCardDesigns($conn, $user_id) {
     $stmt = $conn->prepare("SELECT design_id FROM card_design_purchases WHERE user_id = ?");
     $stmt->execute([$user_id]);
     return $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+}
+
+/* True when the user may use this design: the free classic, or one they own. */
+function userCanUseDesign($conn, $user_id, $design_id) {
+    if ($design_id === "classic") {
+        return true;
+    }
+    $stmt = $conn->prepare(
+        "SELECT 1 FROM card_design_purchases WHERE user_id = ? AND design_id = ? LIMIT 1"
+    );
+    $stmt->execute([$user_id, $design_id]);
+    return (bool) $stmt->fetchColumn();
+}
+
+/* The design currently shown on the user's card (defaults to 'classic'). */
+function getPrimaryDesign($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT design_id FROM user_primary_design WHERE user_id = ? LIMIT 1");
+    $stmt->execute([$user_id]);
+    $id = $stmt->fetchColumn();
+    if (!$id) {
+        return "classic";
+    }
+    // If the row somehow points at a design the user no longer owns, fall back.
+    return userCanUseDesign($conn, $user_id, $id) ? $id : "classic";
+}
+
+/* Persist the user's chosen primary design (caller must validate ownership). */
+function setPrimaryDesign($conn, $user_id, $design_id) {
+    $stmt = $conn->prepare("
+        INSERT INTO user_primary_design (user_id, design_id)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE design_id = VALUES(design_id)
+    ");
+    $stmt->execute([$user_id, $design_id]);
 }
