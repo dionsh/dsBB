@@ -37,3 +37,17 @@ CREATE TABLE IF NOT EXISTS gift_card_purchases (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_gift_card_purchases_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- One row per purchased "Personalize Card" design. The design catalog (with
+-- prices) is static PHP (cardDesignCatalog() in card_designs_db.php). The
+-- UNIQUE key makes a design a one-time purchase per user (never charged twice).
+-- Auto-created at runtime by ensureCardDesignSchema() — documentation only.
+CREATE TABLE IF NOT EXISTS card_design_purchases (
+    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT(11) NOT NULL,
+    design_id VARCHAR(40) NOT NULL,
+    design_name VARCHAR(80) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,           -- charged price in EUR
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_design (user_id, design_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
