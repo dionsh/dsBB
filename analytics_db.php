@@ -53,6 +53,9 @@ function analyticsCategory($desc, $isHouse, $partnerCats) {
 
     if (stripos($d, "Split Bill") === 0) return "Split Bills";
 
+    if (stripos($d, "Gift Card - ") === 0)          return "Shopping";
+    if (stripos($d, "Currency Exchange Fee") === 0) return "Fees";
+
     // Money moved into savings (round-ups + goal deposits + shared group
     // contributions) — kept out of the "expenses" totals and shown in the
     // Savings growth section instead.

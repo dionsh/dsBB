@@ -56,7 +56,7 @@ function seedSubscriptionPlans($conn) {
         ["spotify",    "Spotify Premium",     9.99, "spotify",        "#1DB954", 2],
         ["gym",        "Gym Membership",     29.99, "dumbbell",       "#FF7A00", 3],
         ["codex",      "Codex Subscription", 19.99, "code-tags",      "#6C5CE7", 4],
-        ["prime",      "Amazon Prime",        8.99, "amazon",         "#00A8E1", 5],
+        ["prime",      "Amazon Prime",        8.99, "package-variant-closed", "#00A8E1", 5],
         ["disney",     "Disney+",             8.99, "castle",         "#113CCF", 6],
         ["youtube",    "YouTube Premium",    11.99, "youtube",        "#FF0000", 7],
         ["xbox",       "Xbox Game Pass",     12.99, "microsoft-xbox", "#107C10", 8],
@@ -73,6 +73,10 @@ function seedSubscriptionPlans($conn) {
     foreach ($plans as $p) {
         $stmt->execute($p);
     }
+
+    // The "amazon" glyph doesn't exist in the app's MaterialCommunityIcons set
+    // (renders as a "?" box) — repair rows seeded before this fix.
+    $conn->exec("UPDATE subscription_plans SET icon = 'package-variant-closed' WHERE icon = 'amazon'");
 }
 
 /* Return the plan row for a key (or null). */

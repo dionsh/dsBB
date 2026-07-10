@@ -17,6 +17,10 @@ $data = json_decode(file_get_contents("php://input"), true);
 $user_id  = $data['user_id'] ?? null;
 $purchase = floatval($data['purchase_amount'] ?? 0);
 $label    = trim($data['label'] ?? "");
+// Optional: the app rounds in the user's DISPLAY currency (e.g. up to the next
+// whole USD) and sends the resulting round-up converted to EUR, so the saved
+// preview matches exactly. Bounded server-side; omitted = classic EUR rounding.
+$savedOverride = isset($data['saved_amount']) ? round(floatval($data['saved_amount']), 2) : null;
 
 try {
     if (!$user_id) {
@@ -28,12 +32,22 @@ try {
 
     ensureFeatureSchema($conn);
 
-    // Round up to the next whole euro; the difference is the amount saved.
-    $rounded = ceil($purchase - 0.0000001); // guard against float dust on whole numbers
-    if ($rounded < $purchase) {
-        $rounded = $purchase;
+    if ($savedOverride !== null) {
+        // A round-up is always less than one unit of any supported currency
+        // (all rates within 0.86–1.17 of EUR), so cap it defensively.
+        if ($savedOverride <= 0 || $savedOverride > 1.20) {
+            throw new Exception("This amount is already a whole number - nothing to round up");
+        }
+        $saved   = $savedOverride;
+        $rounded = round($purchase + $saved, 2);
+    } else {
+        // Round up to the next whole euro; the difference is the amount saved.
+        $rounded = ceil($purchase - 0.0000001); // guard against float dust on whole numbers
+        if ($rounded < $purchase) {
+            $rounded = $purchase;
+        }
+        $saved = round($rounded - $purchase, 2);
     }
-    $saved = round($rounded - $purchase, 2);
 
     if ($saved <= 0) {
         throw new Exception("This amount is already a whole number - nothing to round up");
